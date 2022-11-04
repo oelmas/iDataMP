@@ -1,0 +1,15 @@
+﻿using System.Windows.Forms;
+
+namespace MissionPlanner.Controls
+{
+    public class ToolStripConnectionControl : ToolStripControlHost
+    {
+        // Call the base constructor passing in a MonthCalendar instance.     
+        public ToolStripConnectionControl()
+            : base(new ConnectionControl())
+        {
+        }
+
+        public ConnectionControl ConnectionControl => Control as ConnectionControl;
+    }
+}

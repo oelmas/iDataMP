@@ -1,0 +1,106 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using log4net;
+using MissionPlanner.Utilities;
+
+namespace MissionPlanner.Controls
+{
+    public partial class DefaultSettings : UserControl, IActivate
+    {
+        private static readonly ILog log =
+            LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+
+        private List<GitHubContent.FileInfo> paramfiles;
+
+        public DefaultSettings()
+        {
+            InitializeComponent();
+        }
+
+        public void Activate()
+        {
+            CMB_paramfiles.Enabled = false;
+            BUT_paramfileload.Enabled = false;
+
+            UpdateDefaultList();
+        }
+
+        public event EventHandler OnChange;
+
+        private void UpdateDefaultList()
+        {
+            Task.Run(delegate
+            {
+                try
+                {
+                    if (paramfiles == null)
+                        paramfiles = GitHubContent.GetDirContent("ardupilot", "ardupilot", "/Tools/Frame_params/",
+                            ".param");
+
+                    if (!IsHandleCreated || IsDisposed)
+                        return;
+
+                    BeginInvoke((Action)delegate
+                    {
+                        CMB_paramfiles.DataSource = paramfiles.ToArray();
+                        CMB_paramfiles.DisplayMember = "name";
+                        CMB_paramfiles.Enabled = true;
+                        BUT_paramfileload.Enabled = true;
+                    });
+                }
+                catch (Exception ex)
+                {
+                    log.Error(ex);
+                }
+            });
+        }
+
+        private void BUT_paramfileload_Click(object sender, EventArgs e)
+        {
+            var filepath = Settings.GetUserDataDirectory() + CMB_paramfiles.Text;
+
+            if (CMB_paramfiles.SelectedValue == null)
+            {
+                CustomMessageBox.Show("Please select an option first");
+                return;
+            }
+
+            try
+            {
+                var data = GitHubContent.GetFileContent("ardupilot", "ardupilot",
+                    ((GitHubContent.FileInfo)CMB_paramfiles.SelectedValue).path);
+
+                File.WriteAllBytes(filepath, data);
+
+                var param2 = ParamFile.loadParamFile(filepath);
+
+                Form paramCompareForm = new ParamCompare(null, MainV2.comPort.MAV.param, param2);
+
+                ThemeManager.ApplyThemeTo(paramCompareForm);
+                if (paramCompareForm.ShowDialog() == DialogResult.OK)
+                    CustomMessageBox.Show("Loaded parameters!", "Loaded");
+
+                if (OnChange != null)
+                {
+                    OnChange(null, null);
+                    return;
+                }
+
+                Activate();
+            }
+            catch (Exception ex)
+            {
+                CustomMessageBox.Show("Failed to load file.\n" + ex);
+            }
+        }
+
+        private void ConfigDefaultSettings_Load(object sender, EventArgs e)
+        {
+            Activate();
+        }
+    }
+}
